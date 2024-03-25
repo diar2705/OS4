@@ -1,3 +1,4 @@
+#include <string.h>
 #include <unistd.h>
 
 #define MAX_BLOCK_SIZE 100000000
@@ -19,10 +20,11 @@ private:
     size_t __num_allocated_blocks;
     size_t __num_allocated_bytes;
 
-public:
-    Heap();
     void insert(MallocMetadata *block);
     MallocMetadata *get_MMD(void *ptr);
+
+public:
+    Heap();
 
     void *alloc_block(size_t size);
     void free_block(void *ptr);
@@ -46,6 +48,8 @@ Heap::Heap() : __blocks_list(nullptr),
 
 void Heap::insert(MallocMetadata *block)
 {
+    __num_allocated_blocks++;
+    __num_allocated_bytes += block->__size;
     if (__blocks_list == nullptr)
     {
         __blocks_list = block;
@@ -59,8 +63,6 @@ void Heap::insert(MallocMetadata *block)
 
     tmp->__next = block;
     block->__prev = tmp;
-    __num_allocated_blocks++;
-    __num_allocated_bytes += block->__size;
 }
 
 Heap::MallocMetadata *Heap::get_MMD(void *ptr)
@@ -86,7 +88,7 @@ void *Heap::alloc_block(size_t size)
     size_t alloc_size = sizeof(MallocMetadata) + size;
     void *ptr = sbrk(alloc_size);
 
-    if (*(int *)ptr == -1)
+    if (ptr == (void*)-1)
     {
         return nullptr;
     }
@@ -103,10 +105,14 @@ void *Heap::alloc_block(size_t size)
 void Heap::free_block(void *ptr)
 {
     MallocMetadata *block = get_MMD(ptr);
+    if(block->__is_free)
+    {
+        return;
+    }
     block->__is_free = true;
 
-    __num_free_blocks--;
-    __num_free_bytes -= block->__size;
+    __num_free_blocks++;
+    __num_free_bytes += block->__size;
 }
 
 size_t Heap::numFreeBlocks()
@@ -131,7 +137,7 @@ size_t Heap::numAlocatedBytes()
 
 size_t Heap::numMetaDataBytes()
 {
-    return heap.__num_allocated_blocks * sizeof(MallocMetadata);
+    return __num_allocated_blocks * sizeof(MallocMetadata);
 }
 
 size_t Heap::sizeMetaData()
@@ -157,7 +163,7 @@ void *smalloc(size_t size)
     }
     void *res = heap.alloc_block(size);
 
-    return (res == nullptr) ? res : res + heap.sizeMetaData();
+    return (res == nullptr) ? res : (char*)res + heap.sizeMetaData();
 }
 
 void *scalloc(size_t num, size_t size)
@@ -185,9 +191,14 @@ void sfree(void *ptr)
 
 void *srealloc(void *oldp, size_t size)
 {
-    if (size <= 0 || size > 10 ^ 8)
+    if (size <= 0 || size > MAX_BLOCK_SIZE)
     {
         return nullptr;
+    }
+
+    if(oldp == nullptr)
+    {
+        return smalloc(size);
     }
 
     if (heap.block_size(oldp) >= size)
@@ -202,7 +213,7 @@ void *srealloc(void *oldp, size_t size)
         return nullptr;
     }
 
-    memmove(oldp, res, size);
+    memmove(res, oldp, size);
 
     sfree(oldp);
     return res;
