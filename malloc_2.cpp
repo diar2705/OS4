@@ -13,7 +13,8 @@ private:
         MallocMetadata *__prev;
     };
 
-    MallocMetadata *__blocks_list;
+    MallocMetadata *__blocks_list_head;
+    MallocMetadata *__block_list_tail; 
 
     size_t __num_free_blocks;
     size_t __num_free_bytes;
@@ -38,7 +39,8 @@ public:
     size_t block_size(void *ptr);
 };
 
-Heap::Heap() : __blocks_list(nullptr),
+Heap::Heap() : __blocks_list_head(nullptr),
+               __block_list_tail(nullptr),
                __num_free_blocks(0),
                __num_free_bytes(0),
                __num_allocated_blocks(0),
@@ -50,19 +52,16 @@ void Heap::insert(MallocMetadata *block)
 {
     __num_allocated_blocks++;
     __num_allocated_bytes += block->__size;
-    if (__blocks_list == nullptr)
+    if (__blocks_list_head == nullptr)
     {
-        __blocks_list = block;
+        __blocks_list_head = block;
+        __block_list_tail = block;
         return;
     }
-    MallocMetadata *tmp = __blocks_list;
-    while (tmp->__next != nullptr)
-    {
-        tmp = tmp->__next;
-    }
 
-    tmp->__next = block;
-    block->__prev = tmp;
+    __block_list_tail->__next = block;
+    block->__prev = __block_list_tail;
+    __block_list_tail = block;
 }
 
 Heap::MallocMetadata *Heap::get_MMD(void *ptr)
@@ -72,7 +71,7 @@ Heap::MallocMetadata *Heap::get_MMD(void *ptr)
 
 void *Heap::alloc_block(size_t size)
 {
-    MallocMetadata *tmp = __blocks_list;
+    MallocMetadata *tmp = __blocks_list_head;
     while (tmp != nullptr)
     {
         if (tmp->__is_free && tmp->__size >= size)
@@ -88,7 +87,7 @@ void *Heap::alloc_block(size_t size)
     size_t alloc_size = sizeof(MallocMetadata) + size;
     void *ptr = sbrk(alloc_size);
 
-    if (ptr == (void*)-1)
+    if (ptr == (void *)-1)
     {
         return nullptr;
     }
@@ -105,7 +104,7 @@ void *Heap::alloc_block(size_t size)
 void Heap::free_block(void *ptr)
 {
     MallocMetadata *block = get_MMD(ptr);
-    if(block->__is_free)
+    if (block->__is_free)
     {
         return;
     }
@@ -163,7 +162,7 @@ void *smalloc(size_t size)
     }
     void *res = heap.alloc_block(size);
 
-    return (res == nullptr) ? res : (char*)res + heap.sizeMetaData();
+    return (res == nullptr) ? res : (char *)res + heap.sizeMetaData();
 }
 
 void *scalloc(size_t num, size_t size)
@@ -196,7 +195,7 @@ void *srealloc(void *oldp, size_t size)
         return nullptr;
     }
 
-    if(oldp == nullptr)
+    if (oldp == nullptr)
     {
         return smalloc(size);
     }
