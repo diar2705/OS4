@@ -1,66 +1,163 @@
 #include <unistd.h>
-#include <list>
 
-class MallocMetadata
-{
-public:
-    void *__ptr;
-    size_t __size;
-    bool __is_free;
-    MallocMetadata *__next;
-    MallocMetadata *__prev;
-
-    MallocMetadata() = default;
-    MallocMetadata(void *ptr, size_t size) : __ptr(ptr), __size(size), __is_free(false), __next(nullptr), __prev(nullptr)
-    {
-    }
-};
-
+#define MAX_BLOCK_SIZE 100000000
 class Heap
 {
-public:
-    std::list<MallocMetadata> __meta_data; // TODO: we cant use std::list so we have to fix this
+private:
+    struct MallocMetadata
+    {
+        size_t __size;
+        bool __is_free;
+        MallocMetadata *__next;
+        MallocMetadata *__prev;
+    };
+
+    MallocMetadata *__blocks_list;
+
     size_t __num_free_blocks;
     size_t __num_free_bytes;
     size_t __num_allocated_blocks;
     size_t __num_allocated_bytes;
 
-    Heap() : __meta_data(), __num_free_blocks(0), __num_free_bytes(0), __num_allocated_blocks(0), __num_allocated_bytes(0)
-    {
-    }
+public:
+    Heap();
+    void insert(MallocMetadata *block);
+    MallocMetadata *get_MMD(void *ptr);
+
+    void *alloc_block(size_t size);
+    void free_block(void *ptr);
+    size_t numFreeBlocks();
+    size_t numFreeBytes();
+    size_t numAlocatedBlocks();
+    size_t numAlocatedBytes();
+    size_t numMetaDataBytes();
+    size_t sizeMetaData();
+
+    size_t block_size(void *ptr);
 };
+
+Heap::Heap() : __blocks_list(nullptr),
+               __num_free_blocks(0),
+               __num_free_bytes(0),
+               __num_allocated_blocks(0),
+               __num_allocated_bytes(0)
+{
+}
+
+void Heap::insert(MallocMetadata *block)
+{
+    if (__blocks_list == nullptr)
+    {
+        __blocks_list = block;
+        return;
+    }
+    MallocMetadata *tmp = __blocks_list;
+    while (tmp->__next != nullptr)
+    {
+        tmp = tmp->__next;
+    }
+
+    tmp->__next = block;
+    block->__prev = tmp;
+    __num_allocated_blocks++;
+    __num_allocated_bytes += block->__size;
+}
+
+Heap::MallocMetadata *Heap::get_MMD(void *ptr)
+{
+    return (MallocMetadata *)((char *)ptr - sizeof(MallocMetadata));
+}
+
+void *Heap::alloc_block(size_t size)
+{
+    MallocMetadata *tmp = __blocks_list;
+    while (tmp != nullptr)
+    {
+        if (tmp->__is_free && tmp->__size >= size)
+        {
+            tmp->__is_free = false;
+            __num_free_blocks--;
+            __num_free_bytes -= tmp->__size;
+            return tmp;
+        }
+        tmp = tmp->__next;
+    }
+
+    size_t alloc_size = sizeof(MallocMetadata) + size;
+    void *ptr = sbrk(alloc_size);
+
+    if (*(int *)ptr == -1)
+    {
+        return nullptr;
+    }
+
+    MallocMetadata *new_block = (MallocMetadata *)ptr;
+    new_block->__size = size;
+    new_block->__is_free = false;
+    new_block->__next = nullptr;
+    new_block->__prev = nullptr;
+    insert(new_block);
+    return ptr;
+}
+
+void Heap::free_block(void *ptr)
+{
+    MallocMetadata *block = get_MMD(ptr);
+    block->__is_free = true;
+
+    __num_free_blocks--;
+    __num_free_bytes -= block->__size;
+}
+
+size_t Heap::numFreeBlocks()
+{
+    return __num_free_blocks;
+}
+
+size_t Heap::numFreeBytes()
+{
+    return __num_free_bytes;
+}
+
+size_t Heap::numAlocatedBlocks()
+{
+    return __num_allocated_blocks;
+}
+
+size_t Heap::numAlocatedBytes()
+{
+    return __num_allocated_bytes;
+}
+
+size_t Heap::numMetaDataBytes()
+{
+    return heap.__num_allocated_blocks * sizeof(MallocMetadata);
+}
+
+size_t Heap::sizeMetaData()
+{
+    return sizeof(MallocMetadata);
+}
+
+size_t Heap::block_size(void *ptr)
+{
+    MallocMetadata *block = get_MMD(ptr);
+    return block->__size;
+}
+
+//------------------------------------------------------------------------------------------------//
 
 Heap heap;
 
 void *smalloc(size_t size)
 {
-    if (size <= 0 || size > 10 ^ 8)
+    if (size <= 0 || size > MAX_BLOCK_SIZE)
     {
         return nullptr;
     }
+    void *res = heap.alloc_block(size);
 
-    for (MallocMetadata &temp : heap.__meta_data)
-    {
-        if (temp.__is_free == true && temp.__size >= size)
-        {
-            temp.__is_free = false;
-            heap.__num_free_blocks--;
-            heap.__num_free_bytes -= temp.__size;
-            return temp.__ptr;
-        }
-    }
-
-    void *res = sbrk(size);
-    if (*(int *)res == -1)
-    {
-        return nullptr;
-    }
-
-    MallocMetadata data(res, size);
-    heap.__meta_data.push_back(data);
-    heap.__num_allocated_blocks++;
-    heap.__num_allocated_bytes += size;
-    return res;
+    return (res == nullptr) ? res : res + heap.sizeMetaData();
 }
 
 void *scalloc(size_t num, size_t size)
@@ -83,17 +180,7 @@ void sfree(void *ptr)
     {
         return;
     }
-
-    for (MallocMetadata &temp : heap.__meta_data)
-    {
-        if (temp.__ptr == ptr)
-        {
-            temp.__is_free = true;
-            heap.__num_free_blocks++;
-            heap.__num_free_bytes += temp.__size;
-            return;
-        }
-    }
+    heap.free_block(ptr);
 }
 
 void *srealloc(void *oldp, size_t size)
@@ -103,15 +190,9 @@ void *srealloc(void *oldp, size_t size)
         return nullptr;
     }
 
-    for (MallocMetadata &temp : heap.__meta_data)
+    if (heap.block_size(oldp) >= size)
     {
-        if (temp.__ptr == oldp)
-        {
-            if (temp.__size >= size)
-            {
-                return oldp;
-            }
-        }
+        return oldp;
     }
 
     void *res = smalloc(size);
@@ -129,30 +210,30 @@ void *srealloc(void *oldp, size_t size)
 
 size_t _num_free_blocks()
 {
-    return heap.__num_free_blocks;
+    return heap.numFreeBlocks();
 }
 
 size_t _num_free_bytes()
 {
-    return heap.__num_free_bytes;
+    return heap.numFreeBytes();
 }
 
 size_t _num_allocated_blocks()
 {
-    return heap.__num_allocated_blocks;
+    return heap.numAlocatedBlocks();
 }
 
 size_t _num_allocated_bytes()
 {
-    return heap.__num_allocated_bytes;
+    return heap.numAlocatedBytes();
 }
 
 size_t _num_meta_data_bytes()
 {
-    return heap.__num_allocated_blocks * sizeof(MallocMetadata);
+    return heap.numMetaDataBytes();
 }
 
 size_t _size_meta_data()
 {
-    return sizeof(MallocMetadata);
+    return heap.sizeMetaData();
 }
