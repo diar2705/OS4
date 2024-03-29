@@ -136,19 +136,16 @@ TEST_CASE("srealloc case a mmap", "[malloc3]")
     verify_size_with_large_blocks(base, 0);
     validate_array(b, MMAP_THRESHOLD);
 
-//    char *c = (char *)srealloc(b, 32);
-//    REQUIRE(c != nullptr);
-//    REQUIRE(c != b);
-//    verify_blocks(1, 32, 0, 0);
-//    verify_size(base);
-//    validate_array(c, 32);
-//
-//    sfree(c);
-//    verify_blocks(1, 32, 1, 32);
-//    verify_size(base);
-    sfree(b);
-    verify_blocks(0, 0, 0, 0);
-    verify_size_with_large_blocks(base, 0);
+    char *c = (char *)srealloc(b, 32);
+    REQUIRE(c != nullptr);
+    REQUIRE(c != b);
+    verify_blocks(1, 32, 0, 0);
+    verify_size(base);
+    validate_array(c, 32);
+
+    sfree(c);
+    verify_blocks(1, 32, 1, 32);
+    verify_size(base);
 }
 
 TEST_CASE("srealloc case b", "[malloc3]")
