@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <cmath>
 #include <string>
+#include <sys/mman.h>
 
 #define MAX_BLOCK_SIZE 128 * 1024
 #define MAX_ORDER 10
@@ -77,7 +78,7 @@ void *Heap::alloc_block(size_t size)
     MallocMetadata *res;
     if (ceil(order) > MAX_ORDER)
     {
-        res = mmap(nullptr, size + sizeof(MallocMetadata), PROT_READ | PROT_WRITE, MAP_ANON, -1, 0);
+        res = (MallocMetadata *) mmap(nullptr, size + sizeof(MallocMetadata), PROT_READ | PROT_WRITE, MAP_ANON, -1, 0);
         res->__size = size;
         res->__next = nullptr;
         res->__prev = nullptr;
