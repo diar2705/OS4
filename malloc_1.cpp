@@ -1,8 +1,10 @@
 #include <unistd.h>
 
+#define MAX_BLOCK_SIZE 100000000
+
 void *smalloc(size_t size)
 {
-    if (size <= 0 || size > 10 ^ 8)
+    if (size <= 0 || size > MAX_BLOCK_SIZE)
     {
         return nullptr;
     }
