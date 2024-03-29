@@ -76,11 +76,23 @@ void *Heap::alloc_block(size_t size)
 {
     init();
     double order = std::log2(size);
+    void *res;
     if (ceil(order) > MAX_ORDER)
     {
-        //TODO: allocate a block using mmap
+        // TODO: allocate a block using mmap
     }
-    return find_suitable_block(size);
+    else
+    {
+        res = find_suitable_block(size);
+    }
+
+    if (res != nullptr)
+    {
+        __num_free_blocks--;
+        __num_free_bytes -= size;
+    }
+
+    return res;
 }
 
 void Heap::free_block(void *ptr)
@@ -195,9 +207,6 @@ Heap::MallocMetadata *Heap::find_suitable_block(size_t size)
     res->__is_free = false;
     remove(__free_blocks[ord], res);
     insert(__allocated_blocks[ord], res);
-
-    __num_free_blocks--;
-    __num_free_bytes -= res->__size;
 
     return res;
 }
