@@ -34,7 +34,7 @@ add_executable(malloc_3_test malloc_3_test_basic.cpp
 target_link_libraries(malloc_3_test PRIVATE Catch2::Catch2WithMain)
 catch_discover_tests(malloc_3_test TEST_PREFIX malloc_3.)
 
-target_compile_options(malloc_3_test PRIVATE -Wall PRIVATE -pedantic-errors PRIVATE -Werror)
+target_compile_options(malloc_3_test PRIVATE -Wall PRIVATE -pedantic-errors PRIVATE -Werror PRIVATE -g)
 
 if(EXISTS ${SOURCE_DIR}/malloc_4.cpp)
     add_executable(malloc_4_test malloc_3_test_basic.cpp malloc_3_test_reuse.cpp

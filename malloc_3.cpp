@@ -12,7 +12,7 @@ class Heap
 private:
     struct MallocMetadata
     {
-        size_t __size;
+        size_t __block_size;
         bool __is_free;
         MallocMetadata *__next;
         MallocMetadata *__prev;
@@ -22,7 +22,7 @@ private:
     {
         MallocMetadata *__first;
         MallocMetadata *__last;
-        size_t __size;
+        size_t __block_size;
     };
 
     bool __is_first_time;
@@ -74,12 +74,12 @@ Heap::Heap() : __is_first_time(true),
 void *Heap::alloc_block(size_t size)
 {
     init();
-    double order = std::log2(ceil(size / 128) + 1);
+    double order = std::log2(ceil(static_cast<double>(size) / 128));
     MallocMetadata *res;
     if (ceil(order) > MAX_ORDER)
     {
         res = (MallocMetadata *)mmap(nullptr, size + sizeof(MallocMetadata), PROT_READ | PROT_WRITE, MAP_ANON, -1, 0);
-        res->__size = size;
+        res->__block_size = size;
         res->__next = nullptr;
         res->__prev = nullptr;
         res->__is_free = false;
@@ -100,13 +100,13 @@ void *Heap::alloc_block(size_t size)
 void Heap::free_block(void *ptr)
 {
     MallocMetadata *block = get_MMD(ptr);
-    size_t size = block->__size;
+    size_t size = block->__block_size;
     if (block->__is_free)
     {
         return;
     }
     block->__is_free = true;
-    int order = std::log2(ceil(size / 128) + 1);
+    int order = std::log2(ceil(static_cast<double>(size) / 128));
 
     if (remove(__allocated_blocks[order], block))
     {
@@ -156,7 +156,7 @@ size_t Heap::sizeMetaData()
 size_t Heap::block_size(void *ptr)
 {
     MallocMetadata *block = get_MMD(ptr);
-    return block->__size;
+    return block->__block_size;
 }
 
 //----------------------------------------------Heap Helper--------------------------------------//
@@ -191,7 +191,7 @@ void Heap::init()
     {
         MallocMetadata *data = get_MMD((char *)blocks + MAX_BLOCK_SIZE * i);
         data->__is_free = true;
-        data->__size = MAX_BLOCK_SIZE;
+        data->__block_size = MAX_BLOCK_SIZE;
         insert(__free_blocks[MAX_ORDER], data);
     }
     __num_free_blocks = 32;
@@ -205,7 +205,7 @@ bool Heap::split(int order)
         return false;
     }
 
-    if (__free_blocks[order].__size == 0)
+    if (__free_blocks[order].__block_size == 0)
     {
         if (split(order + 1) == false)
         {
@@ -217,12 +217,12 @@ bool Heap::split(int order)
     MallocMetadata *buddy1, *buddy2;
 
     buddy1 = temp;
-    buddy1->__size = (temp->__size) / 2;
+    buddy1->__block_size = (temp->__block_size) / 2;
     buddy1->__is_free = true;
 
-    buddy2 = temp + ((temp->__size) / 2);
+    buddy2 = temp + ((temp->__block_size) / 2);
     buddy2->__is_free = true;
-    buddy2->__size = (temp->__size) / 2;
+    buddy2->__block_size = (temp->__block_size) / 2;
 
     remove(__free_blocks[order], temp);
     insert(__free_blocks[order - 1], buddy1);
@@ -241,10 +241,10 @@ void Heap::merge(int order)
     while (temp != nullptr && temp->__next != nullptr)
     {
 
-        if ((reinterpret_cast<size_t>(temp) xor temp->__size) == reinterpret_cast<size_t>(temp->__next))
+        if ((reinterpret_cast<size_t>(temp) xor temp->__block_size) == reinterpret_cast<size_t>(temp->__next))
         {
             MallocMetadata *dad = temp;
-            dad->__size = temp->__size * 2;
+            dad->__block_size = temp->__block_size * 2;
 
             remove(__free_blocks[order], temp->__next);
             remove(__free_blocks[order], temp);
@@ -259,10 +259,10 @@ void Heap::merge(int order)
 
 Heap::MallocMetadata *Heap::find_suitable_block(size_t size)
 {
-    double order = std::log2(ceil(size / 128) + 1);
+    double order = std::log2(ceil(static_cast<double>(size) / 128));
     int ord = floor(order);
 
-    if (__free_blocks[ord].__size == 0)
+    if (__free_blocks[ord].__block_size == 0)
     {
         if (ord == MAX_ORDER)
         {
@@ -289,7 +289,7 @@ void Heap::insert(list &lst, MallocMetadata *block)
     block->__prev = nullptr;
     block->__next = nullptr;
 
-    if (lst.__size == 0)
+    if (lst.__block_size == 0)
     {
         lst.__first = block;
         lst.__last = block;
@@ -315,18 +315,18 @@ void Heap::insert(list &lst, MallocMetadata *block)
             temp = temp->__next;
         }
     }
-    lst.__size++;
+    lst.__block_size++;
 }
 
 bool Heap::remove(list &lst, MallocMetadata *block)
 {
-    if (lst.__size == 0)
+    if (lst.__block_size == 0)
     {
         return false;
     }
     MallocMetadata *temp = lst.__first;
 
-    if (lst.__size == 1)
+    if (lst.__block_size == 1)
     {
         if (temp == block)
         {
@@ -334,7 +334,7 @@ bool Heap::remove(list &lst, MallocMetadata *block)
             temp->__prev = nullptr;
             lst.__first = nullptr;
             lst.__last = nullptr;
-            lst.__size--;
+            lst.__block_size--;
             return true;
         }
         else
@@ -357,7 +357,7 @@ bool Heap::remove(list &lst, MallocMetadata *block)
             }
             temp->__next = nullptr;
             temp->__prev = nullptr;
-            lst.__size--;
+            lst.__block_size--;
             return true;
         }
         temp = temp->__next;
