@@ -83,7 +83,7 @@ void *Heap::alloc_block(size_t size)
     MallocMetadata *res;
     if (ord > MAX_ORDER)
     {
-        void *ptr = mmap(nullptr, size + sizeof(MallocMetadata), PROT_READ | PROT_WRITE, MAP_ANON, -1, 0);
+        void *ptr = mmap(nullptr, size + sizeof(MallocMetadata), PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
         if (ptr == (void *)-1)
         {
             return nullptr;
