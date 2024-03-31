@@ -6,7 +6,7 @@
 
 #define MAX_BLOCK_SIZE 128 * 1024
 #define MAX_ORDER 10
-
+#define MAX_SIZE 100000000
 class Heap
 {
 private:
@@ -437,7 +437,15 @@ Heap heap;
 
 void *smalloc(size_t size)
 {
-    if (size <= 0)
+    /**
+     * TODO: we should check if we have to alloc the 32 block even if the first smalloc fails, which imo is stupid.
+     * either way, if we have to alloc them, we should make init public rather than private.
+     * and then we should remove it from Heap::alloc_block (won't affect anything but better).
+     * and in the end we should call the init function here at the start of smalloc. 
+    */
+    //
+
+    if (size <= 0 || size > MAX_SIZE)
     {
         return nullptr;
     }
