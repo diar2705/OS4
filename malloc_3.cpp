@@ -77,7 +77,6 @@ Heap::Heap() : __is_first_time(true),
 
 void *Heap::alloc_block(size_t size)
 {
-    init();
     double order = std::log2(ceil((size + sizeof(MallocMetadata)) / static_cast<double>(128)));
     int ord = ceil(order);
     MallocMetadata *res;
@@ -437,14 +436,8 @@ Heap heap;
 
 void *smalloc(size_t size)
 {
-    /**
-     * TODO: we should check if we have to alloc the 32 block even if the first smalloc fails, which imo is stupid.
-     * either way, if we have to alloc them, we should make init public rather than private.
-     * and then we should remove it from Heap::alloc_block (won't affect anything but better).
-     * and in the end we should call the init function here at the start of smalloc. 
-    */
-    //
-
+    init();
+    
     if (size <= 0 || size > MAX_SIZE)
     {
         return nullptr;
