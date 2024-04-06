@@ -39,7 +39,7 @@ private:
     size_t __diff;
 
     MallocMetadata *get_MMD(void *ptr);
-    void init();
+
     bool split(int order);
     void merge(int order);
     MallocMetadata *find_suitable_block(int ord);
@@ -49,7 +49,7 @@ private:
 
 public:
     Heap();
-
+    void init();
     void *alloc_block(size_t size);
     void free_block(void *ptr);
     size_t numFreeBlocks();
@@ -436,7 +436,7 @@ Heap heap;
 
 void *smalloc(size_t size)
 {
-    init();
+    heap.init();
     
     if (size <= 0 || size > MAX_SIZE)
     {
